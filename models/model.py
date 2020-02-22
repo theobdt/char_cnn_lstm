@@ -72,6 +72,7 @@ class CharCNNLSTM(nn.Module):
         num_filters,
         num_layers,
         hidden_size,
+        dropout
     ):
         super().__init__()
         self.num_layers = num_layers
@@ -89,7 +90,9 @@ class CharCNNLSTM(nn.Module):
             hidden_size,
             batch_first=True,
             num_layers=num_layers,
+            dropout=dropout
         )
+        self.drop_layer = nn.Dropout(dropout)
         self.hidden2words = nn.Linear(hidden_size, word_vocab_size)
 
     def forward(self, x, hidden, debug=False):
@@ -141,6 +144,7 @@ class CharCNNLSTM(nn.Module):
         if debug:
             print("after lstm")
             print(x.shape)
+        outputs = self.drop_layer(outputs)
 
         outputs = self.hidden2words(outputs)
         if debug:

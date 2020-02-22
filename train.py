@@ -69,6 +69,9 @@ parser.add_argument(
 parser.add_argument(
     "--clip_grad", type=float, default=5, help="Clip value of gradient",
 )
+parser.add_argument(
+    "--dropout", type=float, default=0.5, help="LSTM dropout",
+)
 args = parser.parse_args()
 
 path_objects = os.path.join("data", args.dataset, "objects")
@@ -104,6 +107,7 @@ model = CharCNNLSTM(
     num_filters=[25] * 6,
     num_layers=2,
     hidden_size=300,
+    dropout=args.dropout
 ).to(device)
 
 loss_function = nn.CrossEntropyLoss()
