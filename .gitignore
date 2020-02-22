@@ -1,0 +1,6 @@
+data
+ckpts
+tests
+*.swp
+*.ipynb
+**/__pycache__
