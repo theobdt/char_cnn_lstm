@@ -14,7 +14,7 @@ import numpy as np
 parser = argparse.ArgumentParser()
 
 parser.add_argument(
-    "-bs", "--batch_size", type=int, default=8, help="Batch size"
+    "-bs", "--batch_size", type=int, default=20, help="Batch size"
 )
 parser.add_argument(
     "-ds",
@@ -28,7 +28,7 @@ parser.add_argument(
     "-l",
     "--seq_len",
     type=int,
-    default=5,
+    default=35,
     help="Length of the words sequence used for training",
 )
 parser.add_argument(
@@ -58,13 +58,16 @@ parser.add_argument(
     "--n_epochs", type=int, default=25, help="Number of epochs",
 )
 parser.add_argument(
-    "--log_interval", type=int, default=1000, help="Number of epochs",
+    "--log_interval", type=int, default=200, help="Number of epochs",
 )
 parser.add_argument(
     "--save", type=str, default="ckpts", help="Number of epochs",
 )
 parser.add_argument(
     "--model", type=str, default=None, help="Name of the model",
+)
+parser.add_argument(
+    "--clip_grad", type=float, default=5, help="Clip value of gradient",
 )
 args = parser.parse_args()
 
@@ -82,8 +85,8 @@ else:
         args.save, datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     )
 os.makedirs(path_ckpt, exist_ok=True)
-print(f'Initialized checkpoint {path_ckpt}')
-path_model = os.path.join(path_ckpt, 'model.pt')
+print(f"Initialized checkpoint {path_ckpt}")
+path_model = os.path.join(path_ckpt, "model.pt")
 
 train_loader = DataLoader(args.dataset, "train", args.batch_size, args.seq_len)
 val_loader = DataLoader(args.dataset, "val", 1, args.seq_len)
@@ -95,13 +98,13 @@ lr = args.lr
 
 model = CharCNNLSTM(
     char_vocab_size=size_char_vocab,
-    char_embedding_size=5,
+    char_embedding_size=15,
     word_vocab_size=size_word_vocab,
     filters_width=[1, 2, 3, 4, 5, 6],
     num_filters=[25] * 6,
     num_layers=2,
     hidden_size=300,
-)
+).to(device)
 
 loss_function = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=lr)
@@ -114,20 +117,23 @@ def train(loader):
     for i in range(len(loader)):
         optimizer.zero_grad()
         inputs, targets = loader[i]
+        inputs = inputs.to(device)
+        targets = targets.to(device)
 
         # repackaging hidden state
-        hidden = tuple([h.detach() for h in hidden])
+        hidden = tuple([h.detach().to(device) for h in hidden])
 
         outputs, hidden = model(inputs, hidden, debug=False)
         loss = loss_function(outputs.view(-1, size_word_vocab), targets)
         # print(f'training loss : {loss}')
-        print(f"step {i + 1}/{len(loader)}, training loss: {loss}", end="\r")
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_grad)
         optimizer.step()
-        total_loss += len(outputs) * loss.item()
-    print('')
-
-    return total_loss / len(loader)
+        total_loss += loss.item()
+        if (i + 1) % args.log_interval == 0:
+            avg_loss = total_loss / args.log_interval
+            print(f"Training step {i + 1}/{len(loader)}, loss: {avg_loss}")
+            total_loss = 0
 
 
 def evaluate(loader):
@@ -137,9 +143,11 @@ def evaluate(loader):
     with torch.no_grad():
         for i in range(len(loader)):
             inputs, targets = loader[i]
+            inputs = inputs.to(device)
+            targets = targets.to(device)
 
             # repackaging hidden state
-            hidden = tuple([h.detach() for h in hidden])
+            hidden = tuple([h.detach().to(device) for h in hidden])
 
             outputs, hidden = model(inputs, hidden, debug=False)
             loss = loss_function(outputs.view(-1, size_word_vocab), targets)
@@ -149,7 +157,7 @@ def evaluate(loader):
                 end="\r",
             )
             total_loss += len(outputs) * loss.item()
-    print('')
+    print("")
     return total_loss / len(loader)
 
 
@@ -158,12 +166,13 @@ for i in range(args.n_epochs):
     print(f"\nEpoch {i+1}/{args.n_epochs}")
     train_loss = train(train_loader)
     val_loss = evaluate(val_loader)
-    print(f'Validation: CE={val_loss}, PPL={np.exp(val_loss)}')
+    print(f"Validation: CE={val_loss}, PPL={np.exp(val_loss)}")
     if not best_val_loss or val_loss < best_val_loss:
         with open(path_model, "wb") as f:
             torch.save(model, f)
-        print(f'Model saved to {path_model}')
+        print(f"Model saved to {path_model}")
         best_val_loss = val_loss
     else:
         lr /= 2
         optimizer = optim.SGD(model.parameters(), lr=lr)
+        print(f'Learning rate reduced to {lr}')
