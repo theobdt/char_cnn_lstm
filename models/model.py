@@ -28,7 +28,10 @@ class CharCNN(nn.Module):
         if debug:
             print("conv input")
             print(x.shape)
-        result = torch.zeros((x.shape[0], sum(self.num_filters)))
+        device = self.convs[0].weight.device
+        result = torch.zeros(
+            (x.shape[0], sum(self.num_filters)), device=device
+        )
         current_idx = 0
         for i, conv in enumerate(self.convs):
             current_size = self.num_filters[i]
