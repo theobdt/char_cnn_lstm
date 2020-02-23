@@ -29,8 +29,9 @@ parser.add_argument(
     help="Date of the checkpoints to use or ['best', 'last']",
 )
 parser.add_argument(
-    "--finish",
-    action="store_true",
+    "--max_words",
+    type=int,
+    default=1,
     help="If entered, each sentence will be completed until an <eos> tag",
 )
 parser.add_argument(
@@ -64,7 +65,8 @@ else:
     ckpt = args.ckpt
 
 path_model = os.path.join(args.path_ckpts, ckpt, "model.pt")
-model = torch.load(path_model)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = torch.load(path_model, map_location=device)
 print(f"Checkpoint {ckpt} loaded successfully")
 model.eval()
 
@@ -81,7 +83,7 @@ path_params = os.path.join(args.path_ckpts, ckpt, "parameters.json")
 model_params = load_params(path_params)
 word_length = int(model_params.data["word_length"])
 
-print(f'Predicting on file {args.txt_file}')
+print(f"Predicting on file {args.txt_file}")
 with open(args.txt_file, "r") as txt_file:
     lines = txt_file.readlines()
 
@@ -89,14 +91,23 @@ cleaned_lines = [clean_str(line[:-1]).split() for line in lines]
 
 with torch.no_grad():
     for line in cleaned_lines:
+        line_str = ' '.join(line)
         hidden = model.init_hidden(1)
         encoded_words = torch.LongTensor(1, len(line), word_length)
         for i, word in enumerate(line):
             encoded_words[0, i, :] = char_vocab.encode_word(word, word_length)
-        outputs, hidden = model(encoded_words, hidden)
-        last_layer = outputs[0, -1, :]
-        idx_next_word = np.argmax(last_layer).item()
-        next_word = word_vocab.to_word(idx_next_word)
-        completed_line = " ".join(line + [next_word])
-        print(f"\nInput : {' '.join(line)}")
-        print(f"Output : {completed_line}")
+        completed = []
+        for _ in range(args.max_words):
+            outputs, hidden = model(encoded_words, hidden)
+            last_layer = outputs[0, -1, :]
+            idx_next_word = np.argmax(last_layer).item()
+            if idx_next_word == 0:
+                break
+            next_word = word_vocab.to_word(idx_next_word)
+            completed.append(next_word)
+            encoded_words = char_vocab.encode_word(
+                next_word, word_length
+            ).view(1, 1, -1)
+        completed = ' ' + ' '.join(completed)
+        print(f"\nInput : {line_str}")
+        print(f"Output : {line_str + completed}")

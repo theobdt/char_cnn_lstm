@@ -62,7 +62,10 @@ parser.add_argument(
     "--log_interval", type=int, default=200, help="Number of epochs",
 )
 parser.add_argument(
-    "--save", type=str, default="ckpts", help="Number of epochs",
+    "--path_ckpts",
+    type=str,
+    default="ckpts",
+    help="Path to checkpoints folder",
 )
 parser.add_argument(
     "--model", type=str, default=None, help="Name of the model",
@@ -88,7 +91,24 @@ parser.add_argument(
     default=15,
     help="Size of character embedding",
 )
+parser.add_argument(
+    "--gdrive",
+    type=str,
+    help=(
+        "Location to mount google drive to. Checkpoints will be saved on "
+        "your drive"
+    ),
+)
 args = parser.parse_args()
+
+prefix = args.path_ckpts
+if args.gdrive:
+    from google.colab import drive
+
+    drive.mount(args.gdrive)
+    prefix = os.path.join(
+        args.gdrive, "My Drive/char_cnn_lstm", args.path_ckpts
+    )
 
 path_objects = os.path.join("data", args.dataset, "objects")
 if not os.path.exists(path_objects) or args.reset_objects:
@@ -98,10 +118,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Device in use : {device}")
 
 if args.model:
-    path_ckpt = os.path.join(args.save, args.model)
+    path_ckpt = os.path.join(prefix, args.model)
 else:
     path_ckpt = os.path.join(
-        args.save, datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        prefix, datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     )
 os.makedirs(path_ckpt, exist_ok=True)
 print(f"Initialized checkpoint {path_ckpt}")
@@ -141,13 +161,13 @@ model_params = {
         "char_embedding_size": args.char_embedding_size,
         "num_layers": args.num_layers,
         "hidden_size": args.hidden_size,
-        "dropout": args.dropout
+        "dropout": args.dropout,
     },
     "training": {
         "loss": loss_function.__str__(),
         "optimizer": optimizer.__str__(),
         "batch_size": args.batch_size,
-        "seq_len": args.seq_len
+        "seq_len": args.seq_len,
     },
 }
 model_params["data"] = data_params._asdict()
