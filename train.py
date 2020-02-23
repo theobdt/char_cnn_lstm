@@ -107,7 +107,7 @@ model = CharCNNLSTM(
     num_filters=[25] * 6,
     num_layers=2,
     hidden_size=300,
-    dropout=args.dropout
+    dropout=args.dropout,
 ).to(device)
 
 loss_function = nn.CrossEntropyLoss()
@@ -155,28 +155,25 @@ def evaluate(loader):
 
             outputs, hidden = model(inputs, hidden, debug=False)
             loss = loss_function(outputs.view(-1, size_word_vocab), targets)
-            # print(f'training loss : {loss}')
-            print(
-                f"step {i + 1}/{len(loader)}, validation loss: {loss}",
-                end="\r",
-            )
             total_loss += len(outputs) * loss.item()
-    print("")
     return total_loss / len(loader)
 
 
-best_val_loss = None
+best_perplexity = None
 for i in range(args.n_epochs):
     print(f"\nEpoch {i+1}/{args.n_epochs}")
     train_loss = train(train_loader)
     val_loss = evaluate(val_loader)
-    print(f"Validation: CE={val_loss}, PPL={np.exp(val_loss)}")
-    if not best_val_loss or val_loss < best_val_loss:
+    perplexity = np.exp(val_loss)
+    print(f"Validation: CE={val_loss}, PPL={perplexity}")
+    if not best_perplexity:
+        best_perplexity = perplexity
+    if perplexity < best_perplexity:
         with open(path_model, "wb") as f:
             torch.save(model, f)
         print(f"Model saved to {path_model}")
-        best_val_loss = val_loss
-    else:
-        lr /= 2
-        optimizer = optim.SGD(model.parameters(), lr=lr)
-        print(f'Learning rate reduced to {lr}')
+        if perplexity > best_perplexity - 1:
+            lr /= 2
+            optimizer = optim.SGD(model.parameters(), lr=lr)
+            print(f"Learning rate reduced to {lr}")
+        best_perplexity = perplexity
