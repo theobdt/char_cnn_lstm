@@ -5,6 +5,7 @@ from collections import namedtuple
 import os
 import json
 import re
+from zipfile import ZipFile
 
 
 Tokens = namedtuple("Tokens", "zero_padding unk_w eos")
@@ -244,6 +245,13 @@ def clean_str(string, tolower=True):
     if tolower:
         string = string.lower()
     return string.strip()
+
+
+def zipfolder(path_in, path_out):
+    with ZipFile(path_out, "w") as zipf:
+        for root, dirs, files in os.walk(path_in):
+            for file in files:
+                zipf.write(os.path.join(root, file))
 
 
 if __name__ == "__main__":

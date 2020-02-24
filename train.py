@@ -1,5 +1,6 @@
 # from torchnlp.datasets import penn_treebank_dataset
-from utils.preprocessing import initialize_dataset, load_params, save_params
+from utils.preprocessing import (initialize_dataset, load_params, save_params,
+                                 zipfolder)
 from utils.dataloader import DataLoader
 from models.model import CharCNNLSTM
 import argparse
@@ -118,11 +119,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Device in use : {device}")
 
 if args.model:
-    path_ckpt = os.path.join(prefix, args.model)
+    ckpt_name = args.model
 else:
-    path_ckpt = os.path.join(
-        prefix, datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    )
+    ckpt_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+path_ckpt = os.path.join(prefix, ckpt_name)
 os.makedirs(path_ckpt, exist_ok=True)
 print(f"Initialized checkpoint {path_ckpt}")
 path_model = os.path.join(path_ckpt, "model.pt")
@@ -256,3 +257,9 @@ for i in range(args.n_epochs):
         model_params["training"]["history_loss_val"] = history_loss_val
         save_params(model_params, path_model_params)
         print(f"Model saved to {path_model}")
+
+if args.gdrive:
+
+    path_zip = os.path.join(prefix, f"{ckpt_name}.zip")
+    zipfolder(path_ckpt, path_zip)
+    print(f"Zipfile saved to {path_zip}")
