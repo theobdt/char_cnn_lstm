@@ -247,11 +247,15 @@ def clean_str(string, tolower=True):
     return string.strip()
 
 
-def zipfolder(path_in, path_out):
-    with ZipFile(path_out, "w") as zipf:
-        for root, dirs, files in os.walk(path_in):
-            for file in files:
-                zipf.write(os.path.join(root, file))
+def zipfolder(path_folder, name_zip):
+    assert os.listdir(path_folder)
+    last_folder = path_folder.split("/")[-1]
+    files = os.listdir(path_folder)
+    with ZipFile(name_zip, "w") as zipf:
+        for file in files:
+            path_file = os.path.join(path_folder, file)
+            path_arc = os.path.join(last_folder, file)
+            zipf.write(path_file, path_arc)
 
 
 if __name__ == "__main__":
