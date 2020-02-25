@@ -40,6 +40,11 @@ parser.add_argument(
     default="ckpts",
     help="Path to the checkpoints folder",
 )
+parser.add_argument(
+    "--no_unk",
+    action='store_true',
+    help="If entered, will not predict unknown token",
+)
 
 args = parser.parse_args()
 
@@ -100,7 +105,11 @@ with torch.no_grad():
         for _ in range(args.max_words):
             outputs, hidden = model(encoded_words, hidden)
             last_layer = outputs[0, -1, :]
-            idx_next_word = np.argmax(last_layer).item()
+            scores_idx = np.argsort(last_layer)
+            # idx_next_word = np.argmax(last_layer).item()
+            idx_next_word = scores_idx[-1]
+            if args.no_unk and idx_next_word == 1:
+                idx_next_word = scores_idx[-2]
             if idx_next_word == 0:
                 break
             next_word = word_vocab.to_word(idx_next_word)
