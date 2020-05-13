@@ -1,5 +1,3 @@
-pytorch_nlp
-torchnlp
+pytorch-nlp
 torch
 numpy
-protobuf
