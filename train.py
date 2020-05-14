@@ -35,7 +35,7 @@ parser.add_argument(
     "--debug", action="store_true",
 )
 parser.add_argument(
-    "--log_interval", type=int, default=200, help="Number of epochs",
+    "--log_interval", type=int, default=50, help="Logging interval",
 )
 parser.add_argument(
     "--path_ckpts",
@@ -46,7 +46,7 @@ parser.add_argument(
 parser.add_argument(
     "--path_logs",
     type=str,
-    default="logs",
+    default="ckpts",
     help="Path to the tensorboard directory",
 )
 parser.add_argument(
@@ -136,7 +136,7 @@ def train(loader, global_step):
     total_loss = 0
     current_loss = 0
     hidden = model.init_hidden(batch_size)
-    for i in range(len(loader)):
+    for i in range(len(loader) - 1000):
         optimizer.zero_grad()
         inputs, targets = loader[i]
         inputs = inputs.to(device)
@@ -186,6 +186,7 @@ def evaluate(loader, global_step):
         print(f"Validation: CE={avg_loss}, PPL={avg_perplexity}")
         writer.add_scalar("val_loss", avg_loss, global_step)
         writer.add_scalar("val_perplexity", avg_perplexity, global_step)
+        writer.add_scalar("learning_rate", lr, global_step)
     return avg_loss
 
 
