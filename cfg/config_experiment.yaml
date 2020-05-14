@@ -5,7 +5,7 @@ data:
 
 training:
   batch_size: 20
-  n_epochs: 30
+  n_epochs: 50
   seq_len: 35
 
 optimizer:

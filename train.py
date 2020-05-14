@@ -157,9 +157,9 @@ def train(loader, global_step):
             print(f"Training step {i + 1}/{len(loader)}, loss: {avg_loss}")
             current_loss = 0
             # tensorboard logging
-            writer.add_scalar("train_loss", avg_loss, global_step + i)
+            writer.add_scalar(f"loss/train", avg_loss, global_step + i)
             writer.add_scalar(
-                "train_perplexity", np.exp(avg_loss), global_step + i
+                "perplexity/train", np.exp(avg_loss), global_step + i
             )
 
     return total_loss / len(loader)
@@ -184,9 +184,8 @@ def evaluate(loader, global_step):
         avg_loss = total_loss / len(loader)
         avg_perplexity = np.exp(avg_loss)
         print(f"Validation: CE={avg_loss}, PPL={avg_perplexity}")
-        writer.add_scalar("val_loss", avg_loss, global_step)
-        writer.add_scalar("val_perplexity", avg_perplexity, global_step)
-        writer.add_scalar("learning_rate", lr, global_step)
+        writer.add_scalar("loss/val", avg_loss, global_step)
+        writer.add_scalar("perplexity/val", avg_perplexity, global_step)
     return avg_loss
 
 
@@ -194,6 +193,7 @@ best_perplexity = None
 n_epochs = config["training"]["n_epochs"]
 for i in range(n_epochs):
     print(f"\nEpoch {i+1}/{n_epochs}")
+    writer.add_scalar("learning_rate", lr, i * len(train_loader))
     train(train_loader, i * len(train_loader))
     val_loss = evaluate(val_loader, (i + 1) * len(train_loader))
     val_perplexity = np.exp(val_loss)
