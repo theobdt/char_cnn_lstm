@@ -5,16 +5,11 @@ from utils.preprocessing import (
     CharsVocabulary,
     WordsVocabulary,
 )
-from utils.dataloader import DataLoader
-from models.model import CharCNNLSTM
 import argparse
 import os
 import torch
-import torch.nn as nn
-import torch.optim as optim
 from datetime import datetime
 import numpy as np
-import pickle
 
 
 parser = argparse.ArgumentParser()
@@ -25,8 +20,8 @@ parser.add_argument(
 parser.add_argument(
     "--ckpt",
     type=str,
-    default="best",
-    help="Date of the checkpoints to use or ['best', 'last']",
+    default="last",
+    help="Date of the checkpoints to use or 'last'",
 )
 parser.add_argument(
     "--max_words",
@@ -49,23 +44,10 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-if args.ckpt in ["best", "last"]:
-    all_ckpts = os.listdir(args.path_ckpts)
-    best_loss = None
-    latest_date = None
-    for folder in all_ckpts:
-        path_params = os.path.join(args.path_ckpts, folder, "parameters.json")
-        params = load_params(path_params)
-        loss = params.training["best_loss"]
-        date = datetime.strptime(folder, "%Y-%m-%d_%H-%M-%S")
-        if not latest_date or date > latest_date[0]:
-            latest_date = (date, folder)
-        if not best_loss or loss < best_loss[0]:
-            best_loss = (loss, folder)
-    if args.ckpt == "best":
-        ckpt = best_loss[1]
-    elif args.ckpt == "last":
-        ckpt = latest_date[1]
+if args.ckpt == "last":
+    ckpts = os.listdir(args.path_ckpts)
+    dates = [datetime.strptime(name, "%Y-%m-%d_%H-%M-%S") for name in ckpts]
+    ckpt = ckpts[np.argmax(dates)]
 else:
     ckpt = args.ckpt
 
@@ -75,8 +57,8 @@ model = torch.load(path_model, map_location=device)
 print(f"Checkpoint {ckpt} loaded successfully")
 model.eval()
 
-path_idx2word = os.path.join(args.path_ckpts, ckpt, "idx2word.pkl")
-path_idx2char = os.path.join(args.path_ckpts, ckpt, "idx2char.pkl")
+path_idx2word = os.path.join(args.path_ckpts, ckpt, "data/idx2word.pkl")
+path_idx2char = os.path.join(args.path_ckpts, ckpt, "data/idx2char.pkl")
 
 char_vocab = CharsVocabulary()
 char_vocab.load(path_idx2char)
@@ -84,9 +66,11 @@ char_vocab.load(path_idx2char)
 word_vocab = WordsVocabulary()
 word_vocab.load(path_idx2word)
 
-path_params = os.path.join(args.path_ckpts, ckpt, "parameters.json")
-model_params = load_params(path_params)
-word_length = int(model_params.data["word_length"])
+path_config = os.path.join(args.path_ckpts, ckpt, "config_experiment.yaml")
+path_data_params = os.path.join(args.path_ckpts, ckpt, "data/data.yaml")
+config = load_params(path_config)
+data_params = load_params(path_data_params)
+word_length = int(data_params["word_length"])
 
 print(f"Predicting on file {args.txt_file}")
 with open(args.txt_file, "r") as txt_file:
@@ -100,7 +84,7 @@ with torch.no_grad():
         hidden = model.init_hidden(1)
         encoded_words = torch.LongTensor(1, len(line), word_length)
         for i, word in enumerate(line):
-            encoded_words[0, i, :] = char_vocab.encode_word(word, word_length)
+            encoded_words[0, i, :] = char_vocab.to_idx(word, word_length)
         completed = []
         for _ in range(args.max_words):
             outputs, hidden = model(encoded_words, hidden)

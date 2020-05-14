@@ -1,0 +1,21 @@
+data:
+  corpus: "penn-treebank"
+  max_word_length: null
+  max_words: null
+
+training:
+  batch_size: 20
+  n_epochs: 30
+  seq_len: 35
+
+optimizer:
+  clip_grad: 5
+  learning_rate: 1
+
+network:
+  char_embedding_size: 15
+  num_layers: 2
+  filters_width: [1, 2, 3, 4, 5, 6]
+  num_filters: [25, 25, 25, 25, 25, 25]
+  hidden_size: 300
+  dropout: 0.5

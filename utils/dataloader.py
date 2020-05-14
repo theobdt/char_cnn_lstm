@@ -5,14 +5,13 @@ import numpy as np
 
 
 class DataLoader(Dataset):
-    def __init__(self, dataset_name, mode, batch_size, seq_len):
+    def __init__(self, path_objects, mode, batch_size, seq_len):
         if mode not in ["train", "val", "test"]:
             raise ValueError("mode '{mode}' not recognized")
 
         self.batch_size = batch_size
         self.seq_len = seq_len
 
-        path_objects = os.path.join("data", dataset_name, "objects")
         path_chars = os.path.join(path_objects, mode, f"chars.pt")
         path_words = os.path.join(path_objects, mode, f"words.pt")
 
@@ -54,7 +53,9 @@ class DataLoader(Dataset):
 
 
 if __name__ == "__main__":
-    dl = DataLoader("penn-treebank", "train", batch_size=16, seq_len=5)
+    dl = DataLoader(
+        "data/penn-treebank/objects", "train", batch_size=16, seq_len=5
+    )
     print(dl.__len__())
     x, y = dl.__get_item__(10)
     print(x.shape, y.shape)

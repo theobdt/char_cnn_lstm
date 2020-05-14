@@ -1,6 +1,8 @@
-# from torchnlp.datasets import penn_treebank_dataset
-from utils.preprocessing import (initialize_dataset, load_params, save_params,
-                                 zipfolder)
+from utils.preprocessing import (
+    initialize_dataset,
+    load_params,
+    zipfolder,
+)
 from utils.dataloader import DataLoader
 from models.model import CharCNNLSTM
 import argparse
@@ -8,6 +10,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import numpy as np
 import shutil
@@ -16,22 +19,11 @@ import shutil
 parser = argparse.ArgumentParser()
 
 parser.add_argument(
-    "-bs", "--batch_size", type=int, default=20, help="Batch size"
-)
-parser.add_argument(
-    "-ds",
-    "--dataset",
+    "-c",
+    "--config",
     type=str,
-    default="penn-treebank",
-    help="Name of the dataset to use",
-)
-parser.add_argument("--epochs", type=int, default=10, help="Number of epochs")
-parser.add_argument(
-    "-l",
-    "--seq_len",
-    type=int,
-    default=35,
-    help="Length of the words sequence used for training",
+    default="cfg/config_experiment.yaml",
+    help="Path to the config file for the experiment",
 )
 parser.add_argument(
     "-reset",
@@ -40,24 +32,7 @@ parser.add_argument(
     help="If entered, words and characters objects are recomputed",
 )
 parser.add_argument(
-    "-mw",
-    "--max_words",
-    type=int,
-    default=None,
-    help="Maximum size of the words vocabulary",
-)
-parser.add_argument(
-    "-mwl",
-    "--max_words_len",
-    type=int,
-    default=None,
-    help="Maximum size of words",
-)
-parser.add_argument(
-    "--lr", type=float, default=1, help="Start learning rate",
-)
-parser.add_argument(
-    "--n_epochs", type=int, default=25, help="Number of epochs",
+    "--debug", action="store_true",
 )
 parser.add_argument(
     "--log_interval", type=int, default=200, help="Number of epochs",
@@ -69,28 +44,10 @@ parser.add_argument(
     help="Path to checkpoints folder",
 )
 parser.add_argument(
-    "--model", type=str, default=None, help="Name of the model",
-)
-parser.add_argument(
-    "--clip_grad", type=float, default=5, help="Clip value of gradient",
-)
-parser.add_argument(
-    "--dropout", type=float, default=0.5, help="LSTM dropout",
-)
-parser.add_argument(
-    "--hidden_size",
-    type=int,
-    default=300,
-    help="Size of hidden state in LSTM layers",
-)
-parser.add_argument(
-    "--num_layers", type=int, default=2, help="Number of LSTM layers",
-)
-parser.add_argument(
-    "--char_embedding_size",
-    type=int,
-    default=15,
-    help="Size of character embedding",
+    "--path_logs",
+    type=str,
+    default="logs",
+    help="Path to the tensorboard directory",
 )
 parser.add_argument(
     "--gdrive",
@@ -101,90 +58,84 @@ parser.add_argument(
     ),
 )
 args = parser.parse_args()
+config = load_params(args.config)
 
-prefix = args.path_ckpts
+path_ckpts = args.path_ckpts
+path_logs = args.path_logs
 if args.gdrive:
     from google.colab import drive
 
     drive.mount(args.gdrive)
-    prefix = os.path.join(
+    path_ckpts = os.path.join(
         args.gdrive, "My Drive/char_cnn_lstm", args.path_ckpts
     )
+    path_logs = os.path.join(
+        args.gdrive, "My Drive/char_cnn_lstm", args.path_logs
+    )
 
-path_objects = os.path.join("data", args.dataset, "objects")
+path_objects = os.path.join("data", config["data"]["corpus"], "objects")
 if not os.path.exists(path_objects) or args.reset_objects:
-    initialize_dataset(args.dataset, args.max_words_len, args.max_words)
+    initialize_dataset(**config["data"])
 
+
+path_data_params = os.path.join(path_objects, "data.yaml")
+data_params = load_params(path_data_params)
+
+# Initialize checkpoint
+ckpt_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+path_ckpt = os.path.join(path_ckpts, ckpt_name)
+path_ckpt_data = os.path.join(path_ckpt, "data")
+path_model = os.path.join(path_ckpt, "model.pt")
+os.makedirs(path_ckpt_data)
+path_ckpt_config = os.path.join(path_ckpt, "config.yaml")
+
+path_idx2char = os.path.join(path_objects, "idx2char.pkl")
+path_idx2word = os.path.join(path_objects, "idx2word.pkl")
+
+shutil.copy2(path_idx2char, path_ckpt_data)
+shutil.copy2(path_idx2word, path_ckpt_data)
+shutil.copy2(path_data_params, path_ckpt_data)
+shutil.copy2(args.config, path_ckpt)
+print(f"Initialized checkpoint {path_ckpt}")
+
+# create data loaders
+batch_size = config["training"]["batch_size"]
+seq_len = config["training"]["seq_len"]
+train_loader = DataLoader(path_objects, "train", batch_size, seq_len)
+val_loader = DataLoader(path_objects, "val", 1, seq_len)
+
+char_vocab_size = data_params["char_vocab_size"]
+word_vocab_size = data_params["word_vocab_size"]
+
+# instantiate model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Device in use : {device}")
-
-if args.model:
-    ckpt_name = args.model
-else:
-    ckpt_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-path_ckpt = os.path.join(prefix, ckpt_name)
-os.makedirs(path_ckpt, exist_ok=True)
-print(f"Initialized checkpoint {path_ckpt}")
-path_model = os.path.join(path_ckpt, "model.pt")
-
-train_loader = DataLoader(args.dataset, "train", args.batch_size, args.seq_len)
-val_loader = DataLoader(args.dataset, "val", 1, args.seq_len)
-
-path_params = os.path.join("data", args.dataset, "objects/parameters.json")
-data_params = load_params(path_params)
-
-size_char_vocab = data_params.size_char_vocab
-size_word_vocab = data_params.size_word_vocab
-lr = args.lr
-filters_width = [1, 2, 3, 4, 5, 6]
-num_filters = [25] * 6
-
 model = CharCNNLSTM(
-    char_vocab_size=size_char_vocab,
-    char_embedding_size=args.char_embedding_size,
-    word_vocab_size=size_word_vocab,
-    filters_width=filters_width,
-    num_filters=num_filters,
-    num_layers=args.num_layers,
-    hidden_size=args.hidden_size,
-    dropout=args.dropout,
+    char_vocab_size=char_vocab_size,
+    word_vocab_size=word_vocab_size,
+    **config["network"],
 ).to(device)
 
-
+# define loss and optimizer
 loss_function = nn.CrossEntropyLoss()
+lr = config["optimizer"]["learning_rate"]
+clip_grad = config["optimizer"]["clip_grad"]
 optimizer = optim.SGD(model.parameters(), lr=lr)
 
-model_params = {
-    "model": {
-        "filters_width": filters_width,
-        "num_filters": num_filters,
-        "char_embedding_size": args.char_embedding_size,
-        "num_layers": args.num_layers,
-        "hidden_size": args.hidden_size,
-        "dropout": args.dropout,
-    },
-    "training": {
-        "loss": loss_function.__str__(),
-        "optimizer": optimizer.__str__(),
-        "batch_size": args.batch_size,
-        "seq_len": args.seq_len,
-    },
-}
-model_params["data"] = data_params._asdict()
-path_model_params = os.path.join(path_ckpt, "parameters.json")
-
-path_idx2char = os.path.join("data", args.dataset, "objects/idx2char.pkl")
-path_idx2word = os.path.join("data", args.dataset, "objects/idx2word.pkl")
-shutil.copy2(path_idx2char, path_ckpt + "/idx2char.pkl")
-shutil.copy2(path_idx2word, path_ckpt + "/idx2word.pkl")
+# initialize tensorboard and save model graph
+writer = SummaryWriter(os.path.join(path_logs, ckpt_name))
+sample_input, _ = train_loader[0]
+sample_hidden = model.init_hidden(batch_size)
+sample_hidden = tuple([h.detach().to(device) for h in sample_hidden])
+writer.add_graph(model, (sample_input.to(device), sample_hidden))
 
 
-def train(loader):
+def train(loader, global_step):
     model.train()
     total_loss = 0
     current_loss = 0
-    hidden = model.init_hidden(args.batch_size)
+    hidden = model.init_hidden(batch_size)
     for i in range(len(loader)):
         optimizer.zero_grad()
         inputs, targets = loader[i]
@@ -194,11 +145,10 @@ def train(loader):
         # repackaging hidden state
         hidden = tuple([h.detach().to(device) for h in hidden])
 
-        outputs, hidden = model(inputs, hidden, debug=False)
-        loss = loss_function(outputs.view(-1, size_word_vocab), targets)
-        # print(f'training loss : {loss}')
+        outputs, hidden = model(inputs, hidden, debug=args.debug)
+        loss = loss_function(outputs.view(-1, word_vocab_size), targets)
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_grad)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), clip_grad)
         optimizer.step()
         current_loss += loss.item()
         total_loss += loss.item()
@@ -206,10 +156,16 @@ def train(loader):
             avg_loss = current_loss / args.log_interval
             print(f"Training step {i + 1}/{len(loader)}, loss: {avg_loss}")
             current_loss = 0
+            # tensorboard logging
+            writer.add_scalar("train_loss", avg_loss, global_step + i)
+            writer.add_scalar(
+                "train_perplexity", np.exp(avg_loss), global_step + i
+            )
+
     return total_loss / len(loader)
 
 
-def evaluate(loader):
+def evaluate(loader, global_step):
     model.eval()
     total_loss = 0
     hidden = model.init_hidden(1)
@@ -222,44 +178,37 @@ def evaluate(loader):
             # repackaging hidden state
             hidden = tuple([h.detach().to(device) for h in hidden])
 
-            outputs, hidden = model(inputs, hidden, debug=False)
-            loss = loss_function(outputs.view(-1, size_word_vocab), targets)
+            outputs, hidden = model(inputs, hidden, debug=args.debug)
+            loss = loss_function(outputs.view(-1, word_vocab_size), targets)
             total_loss += len(outputs) * loss.item()
-    return total_loss / len(loader)
+        avg_loss = total_loss / len(loader)
+        avg_perplexity = np.exp(avg_loss)
+        print(f"Validation: CE={avg_loss}, PPL={avg_perplexity}")
+        writer.add_scalar("val_loss", avg_loss, global_step)
+        writer.add_scalar("val_perplexity", avg_perplexity, global_step)
+    return avg_loss
 
 
-best_perplexity = None
-history_loss_train = []
-history_loss_val = []
-
-for i in range(args.n_epochs):
-    print(f"\nEpoch {i+1}/{args.n_epochs}")
-    train_loss = train(train_loader)
-    val_loss = evaluate(val_loader)
-    perplexity = np.exp(val_loss)
-    history_loss_train.append(train_loss)
-    history_loss_val.append(val_loss)
-    print(f"Validation: CE={val_loss}, PPL={perplexity}")
-    if not best_perplexity:
-        best_perplexity = perplexity
-    if perplexity < best_perplexity:
-        if perplexity > best_perplexity - 1:
+best_loss = None
+n_epochs = config["training"]["n_epochs"]
+for i in range(n_epochs):
+    print(f"\nEpoch {i+1}/{n_epochs}")
+    val_loss = evaluate(val_loader, i * len(train_loader))
+    train(train_loader, i * len(train_loader))
+    if not best_loss:
+        best_loss = val_loss
+    if val_loss < best_loss:
+        if val_loss > best_loss - 1:
             lr /= 2
             optimizer = optim.SGD(model.parameters(), lr=lr)
             print(f"Learning rate reduced to {lr}")
-        best_perplexity = perplexity
+        best_loss = val_loss
         with open(path_model, "wb") as f:
             torch.save(model, f)
-        model_params["training"]["best_perplexity"] = best_perplexity
-        model_params["training"]["best_loss"] = val_loss
-        model_params["training"]["n_epochs"] = i + 1
-        model_params["training"]["history_loss_train"] = history_loss_train
-        model_params["training"]["history_loss_val"] = history_loss_val
-        save_params(model_params, path_model_params)
         print(f"Model saved to {path_model}")
+writer.close()
 
 if args.gdrive:
-
-    path_zip = os.path.join(prefix, f"{ckpt_name}.zip")
+    path_zip = os.path.join(path_ckpts, f"{ckpt_name}.zip")
     zipfolder(path_ckpt, path_zip)
     print(f"Zipfile saved to {path_zip}")

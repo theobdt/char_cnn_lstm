@@ -1,7 +1,7 @@
 data
 .venv
 ckpts
-tests
 *.swp
 *.ipynb
+**/logs
 **/__pycache__

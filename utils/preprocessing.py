@@ -3,8 +3,9 @@ import shutil
 import torch
 from collections import namedtuple
 import os
-import json
+import yaml
 import re
+from tqdm import tqdm
 from zipfile import ZipFile
 
 
@@ -15,7 +16,7 @@ tokens = Tokens(zero_padding=" ", unk_w="__", eos="|")
 def replace_token(word):
     if word == "<unk>":
         return tokens.unk_w
-    if word == "</s>":
+    elif word == "</s>":
         return tokens.eos
     return word
 
@@ -54,12 +55,18 @@ class CharsVocabulary:
                 return
         return ids
 
-    def encode_word(self, word, word_length):
-        encoded = torch.zeros(word_length)
-        for i in range(min(len(word), word_length)):
-            encoded[i] = self.to_idx(word[i])
+    def to_chars(self, idx_tensor):
+        chars = []
+        for idx in idx_tensor:
+            chars.append(self.idx2char[idx])
+        return chars
 
-        return encoded.long()
+    # def encode_word(self, word, word_length):
+    # encoded = torch.zeros(word_length)
+    # for i in range(min(len(word), word_length)):
+    # encoded[i] = self.to_idx(word[i])
+
+    # return encoded.long()
 
 
 class WordsVocabulary:
@@ -75,8 +82,8 @@ class WordsVocabulary:
         else:
             self.words_count[word] = 1
 
-    def sort(self, max_words):
-        if max_words is None:
+    def sort(self, max_words=None):
+        if not max_words:
             max_words = len(self.words_count)
 
         self.words_count = {
@@ -112,7 +119,7 @@ class WordsVocabulary:
 
 
 def create_objects(
-    name, datasets, path, max_word_length, max_words, compute_tensors=True
+    corpus, datasets, path, max_word_length, max_words, compute_tensors=True
 ):
     assert os.path.exists(path), "path not found"
 
@@ -120,7 +127,8 @@ def create_objects(
     char_vocabulary = CharsVocabulary()
     max_word_len_tmp = 0
 
-    parameters = {}
+    parameters = {"corpus": corpus}
+    print(f"Corpus : {corpus}")
 
     for mode, dataset in datasets.items():
         for word in dataset:
@@ -157,13 +165,11 @@ def create_objects(
         pickle.dump(word_vocabulary.idx2word, file)
     print(f"Word vocabulary saved to {path_word_voc}")
 
-    parameters["size_char_vocab"] = len(char_vocabulary.idx2char)
-    parameters["size_word_vocab"] = len(word_vocabulary.idx2word)
-    parameters["name"] = name
+    parameters["char_vocab_size"] = len(char_vocabulary.idx2char)
+    parameters["word_vocab_size"] = len(word_vocabulary.idx2word)
 
-    path_parameters = os.path.join(path, "parameters.json")
-    with open(path_parameters, "w") as file:
-        json.dump(parameters, file, indent=4, sort_keys=True)
+    path_parameters = os.path.join(path, "data.yaml")
+    save_params(parameters, path_parameters)
     print(f"Parameters saved to {path_parameters}")
 
     if compute_tensors:
@@ -174,7 +180,7 @@ def create_objects(
             )
             output_words = torch.zeros(len(dataset), dtype=torch.long)
 
-            for i, word in enumerate(dataset):
+            for i, word in enumerate(tqdm(dataset, desc=mode)):
                 word = replace_token(word)
                 output_chars[i] = char_vocabulary.to_idx(word, word_length)
                 output_words[i] = word_vocabulary.to_idx(word)
@@ -182,23 +188,22 @@ def create_objects(
             torch.save(output_chars, path_chars)
             path_words = os.path.join(path, mode, "words.pt")
             torch.save(output_words, path_words)
-            print(
-                f"Data {mode}: tensors saved to {path_chars} and {path_words}"
-            )
+            print(f"Tensors {mode} saved to {path_chars} and {path_words}\n")
+    return char_vocabulary, word_vocabulary
 
 
-def initialize_dataset(name, max_word_length=None, max_words=None):
-    print(f"Initializing dataset {name} ..")
-    if name == "penn-treebank":
+def initialize_dataset(corpus, max_word_length=None, max_words=None):
+    print(f"Initializing dataset ..")
+    if corpus == "penn-treebank":
         from torchnlp.datasets import penn_treebank_dataset
 
         train, val, test = penn_treebank_dataset(
             train=True, dev=True, test=True
         )
     else:
-        raise ValueError(f"Dataset {name} not recognized")
+        raise ValueError(f"Dataset {corpus} not recognized")
 
-    root_path = os.path.join("data", name, "objects")
+    root_path = os.path.join("data", corpus, "objects")
     if os.path.exists(root_path):
         shutil.rmtree(root_path)
     os.makedirs(root_path + "/train", exist_ok=True)
@@ -206,21 +211,21 @@ def initialize_dataset(name, max_word_length=None, max_words=None):
     os.makedirs(root_path + "/test", exist_ok=True)
 
     datasets = {"train": train, "val": val, "test": test}
-    create_objects(name, datasets, root_path, max_word_length, max_words)
+    return create_objects(
+        corpus, datasets, root_path, max_word_length, max_words
+    )
 
 
 def load_params(path):
     with open(path, "r") as file:
-        dictionary = json.load(file)
-    Parameters = namedtuple("Parameters", sorted(dictionary))
-    params = Parameters(**dictionary)
+        dictionary = yaml.safe_load(file)
 
-    return params
+    return dictionary
 
 
 def save_params(dictionary, path):
     with open(path, "w") as file:
-        json.dump(dictionary, file, indent=4, sort_keys=True)
+        yaml.dump(dictionary, file)
 
 
 def clean_str(string, tolower=True):
