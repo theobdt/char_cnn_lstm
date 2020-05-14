@@ -136,7 +136,7 @@ def train(loader, global_step):
     total_loss = 0
     current_loss = 0
     hidden = model.init_hidden(batch_size)
-    for i in range(len(loader) - 1000):
+    for i in range(len(loader)):
         optimizer.zero_grad()
         inputs, targets = loader[i]
         inputs = inputs.to(device)
@@ -190,20 +190,21 @@ def evaluate(loader, global_step):
     return avg_loss
 
 
-best_loss = None
+best_perplexity = None
 n_epochs = config["training"]["n_epochs"]
 for i in range(n_epochs):
     print(f"\nEpoch {i+1}/{n_epochs}")
-    val_loss = evaluate(val_loader, i * len(train_loader))
     train(train_loader, i * len(train_loader))
-    if not best_loss:
-        best_loss = val_loss
-    if val_loss < best_loss:
-        if val_loss > best_loss - 1:
+    val_loss = evaluate(val_loader, (i + 1) * len(train_loader))
+    val_perplexity = np.exp(val_loss)
+    if not best_perplexity:
+        best_perplexity = val_perplexity
+    if val_perplexity < best_perplexity:
+        if val_perplexity > best_perplexity - 1:
             lr /= 2
             optimizer = optim.SGD(model.parameters(), lr=lr)
             print(f"Learning rate reduced to {lr}")
-        best_loss = val_loss
+        best_perplexity = val_perplexity
         with open(path_model, "wb") as f:
             torch.save(model, f)
         print(f"Model saved to {path_model}")
