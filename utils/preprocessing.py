@@ -2,11 +2,13 @@ import pickle
 import shutil
 import torch
 from collections import namedtuple
+import nltk
 import os
 import yaml
 import re
 from tqdm import tqdm
 from zipfile import ZipFile
+import numpy as np
 
 
 Tokens = namedtuple("Tokens", "zero_padding unk_w eos")
@@ -192,27 +194,47 @@ def create_objects(
     return char_vocabulary, word_vocabulary
 
 
-def initialize_dataset(corpus, max_word_length=None, max_words=None):
+def initialize_dataset(
+    corpus_name,
+    max_word_length=None,
+    max_words=None,
+    data_splits=[0.7, 0.2, 0.1],
+):
     print(f"Initializing dataset ..")
-    if corpus == "penn-treebank":
-        from torchnlp.datasets import penn_treebank_dataset
+    assert abs(sum(data_splits) - 1) < 0.0001
+    if corpus_name == "penn-treebank":
+        nltk.download("treebank", "data/penn-treebank")
+        from nltk.corpus import treebank as corpus
 
-        train, val, test = penn_treebank_dataset(
-            train=True, dev=True, test=True
-        )
+    elif corpus_name == "brown":
+        nltk.download("brown", "data/brown")
+        from nltk.corpus import brown as corpus
+
     else:
-        raise ValueError(f"Dataset {corpus} not recognized")
+        raise ValueError(f"Corpus {corpus_name} not supported")
 
-    root_path = os.path.join("data", corpus, "objects")
+    # data preprocessing
+    all_words = corpus.words()
+    n_words = len(all_words)
+    split_n = [int(s * n_words) for s in np.cumsum(data_splits)]
+    train = clean_str(" ".join(all_words[: split_n[0]]))
+    val = clean_str(" ".join(all_words[split_n[0] : split_n[1]]))
+    test = clean_str(" ".join(all_words[split_n[1] :]))
+    datasets = {
+        "train": train.split(),
+        "val": val.split(),
+        "test": test.split(),
+    }
+
+    root_path = os.path.join("data", corpus_name, "objects")
     if os.path.exists(root_path):
         shutil.rmtree(root_path)
     os.makedirs(root_path + "/train", exist_ok=True)
     os.makedirs(root_path + "/val", exist_ok=True)
     os.makedirs(root_path + "/test", exist_ok=True)
 
-    datasets = {"train": train, "val": val, "test": test}
     return create_objects(
-        corpus, datasets, root_path, max_word_length, max_words
+        corpus_name, datasets, root_path, max_word_length, max_words
     )
 
 

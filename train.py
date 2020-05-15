@@ -73,7 +73,7 @@ if args.gdrive:
         args.gdrive, "My Drive/char_cnn_lstm", args.path_logs
     )
 
-path_objects = os.path.join("data", config["data"]["corpus"], "objects")
+path_objects = os.path.join("data", config["data"]["corpus_name"], "objects")
 if not os.path.exists(path_objects) or args.reset_objects:
     initialize_dataset(**config["data"])
 

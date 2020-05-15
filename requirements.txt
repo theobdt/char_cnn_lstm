@@ -1,4 +1,4 @@
-pytorch-nlp
 torch
 numpy
 pyyaml
+nltk

@@ -1,5 +1,5 @@
 data:
-  corpus: "penn-treebank"
+  corpus_name: "brown"
   max_word_length: null
   max_words: null
 
