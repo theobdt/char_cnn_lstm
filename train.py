@@ -1,7 +1,6 @@
 from utils.preprocessing import (
     initialize_dataset,
     load_params,
-    zipfolder,
 )
 from utils.dataloader import DataLoader
 from models.model import CharCNNLSTM
@@ -44,12 +43,6 @@ parser.add_argument(
     help="Path to checkpoints folder",
 )
 parser.add_argument(
-    "--path_logs",
-    type=str,
-    default="ckpts",
-    help="Path to the tensorboard directory",
-)
-parser.add_argument(
     "--gdrive",
     type=str,
     help=(
@@ -61,16 +54,12 @@ args = parser.parse_args()
 config = load_params(args.config)
 
 path_ckpts = args.path_ckpts
-path_logs = args.path_logs
 if args.gdrive:
     from google.colab import drive
 
     drive.mount(args.gdrive)
     path_ckpts = os.path.join(
         args.gdrive, "My Drive/char_cnn_lstm", args.path_ckpts
-    )
-    path_logs = os.path.join(
-        args.gdrive, "My Drive/char_cnn_lstm", args.path_logs
     )
 
 path_objects = os.path.join("data", config["data"]["corpus_name"], "objects")
@@ -124,7 +113,7 @@ clip_grad = config["optimizer"]["clip_grad"]
 optimizer = optim.SGD(model.parameters(), lr=lr)
 
 # initialize tensorboard and save model graph
-writer = SummaryWriter(os.path.join(path_logs, ckpt_name))
+writer = SummaryWriter(os.path.join(path_ckpts, ckpt_name))
 sample_input, _ = train_loader[0]
 sample_hidden = model.init_hidden(batch_size)
 sample_hidden = tuple([h.detach().to(device) for h in sample_hidden])
@@ -211,6 +200,5 @@ for i in range(n_epochs):
 writer.close()
 
 if args.gdrive:
-    path_zip = os.path.join(path_ckpts, f"{ckpt_name}.zip")
-    zipfolder(path_ckpt, path_zip)
+    shutil.make_archive(path_ckpt, 'zip', path_ckpt)
     print(f"Zipfile saved to {path_zip}")

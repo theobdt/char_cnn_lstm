@@ -1,21 +1,21 @@
 data:
   corpus_name: "brown"
   max_word_length: null
-  max_words: null
+  max_words: 16383
 
 training:
-  batch_size: 20
-  n_epochs: 50
-  seq_len: 35
+  batch_size: 16
+  n_epochs: 40
+  seq_len: 32
 
 optimizer:
   clip_grad: 5
   learning_rate: 1
 
 network:
-  char_embedding_size: 15
+  char_embedding_size: 32
   num_layers: 2
   filters_width: [1, 2, 3, 4, 5, 6]
   num_filters: [25, 25, 25, 25, 25, 25]
-  hidden_size: 300
+  hidden_size: 512
   dropout: 0.5

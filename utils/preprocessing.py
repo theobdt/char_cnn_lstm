@@ -12,7 +12,7 @@ import numpy as np
 
 
 Tokens = namedtuple("Tokens", "zero_padding unk_w eos")
-tokens = Tokens(zero_padding=" ", unk_w="__", eos="|")
+tokens = Tokens(zero_padding=" ", unk_w="*", eos="|")
 
 
 def replace_token(word):
@@ -20,7 +20,41 @@ def replace_token(word):
         return tokens.unk_w
     elif word == "</s>":
         return tokens.eos
+    elif word == ".":
+        return ""
     return word
+
+
+def clean_str(string, tolower=True):
+    """
+    Tokenization/string cleaning.
+    Original taken from https://github.com/yoonkim/CNN_sentence/blob/master/
+    process_data.py
+    """
+    # string = re.sub(r"[^A-Za-z0-9(),!?\'\`]", " ", string)
+    string = re.sub(r"\'s", " 's", string)
+    string = re.sub(r"\'ve", " 've", string)
+    string = re.sub(r"n\'t", " n't", string)
+    string = re.sub(r"\'re", " 're", string)
+    string = re.sub(r"\'d", " 'd", string)
+    string = re.sub(r"\'ll", " 'll", string)
+    string = re.sub(r",", " , ", string)
+    string = re.sub(r"!", " ! ", string)
+    string = re.sub(r"\(", " ( ", string)
+    string = re.sub(r"\)", " ) ", string)
+    string = re.sub(r"\?", " ? ", string)
+    string = re.sub(r"``", " ", string)
+    string = re.sub(r"''", " ", string)
+    string = re.sub(r"\s{2,}", " ", string)
+    if tolower:
+        string = string.lower()
+    return string.strip()
+
+
+def preprocess_sentence(sentence):
+    replaced_sentence = [replace_token(word) for word in sentence]
+    cleaned_sentence = clean_str(" ".join(replaced_sentence))
+    return [tokens.eos] + cleaned_sentence.split()
 
 
 class CharsVocabulary:
@@ -55,7 +89,7 @@ class CharsVocabulary:
             except KeyError:
                 print(f"ERROR: Character '{char}' not recognized")
                 return
-        return ids
+        return ids.long()
 
     def to_chars(self, idx_tensor):
         chars = []
@@ -203,28 +237,46 @@ def initialize_dataset(
     print(f"Initializing dataset ..")
     assert abs(sum(data_splits) - 1) < 0.0001
     if corpus_name == "penn-treebank":
-        nltk.download("treebank", "data/penn-treebank")
-        from nltk.corpus import treebank as corpus
+
+        from torchnlp.datasets import penn_treebank_dataset
+
+        train, val, test = penn_treebank_dataset(
+            train=True, dev=True, test=True
+        )
+        train = preprocess_sentence(train)
+        val = preprocess_sentence(val)
+        test = preprocess_sentence(test)
+        datasets = {
+            "train": train,
+            "val": val,
+            "test": test,
+        }
 
     elif corpus_name == "brown":
-        nltk.download("brown", "data/brown")
-        from nltk.corpus import brown as corpus
+        nltk.download("brown", "./data/brown")
+        from nltk.corpus import brown
+
+        processed_txt = []
+        for s in brown.sents():
+            processed_txt += preprocess_sentence(s)
+
+        n_tokens = len(processed_txt)
+        split_n = [int(s * n_tokens) for s in np.cumsum(data_splits)]
+        train = processed_txt[: split_n[0]]
+        val = processed_txt[split_n[0] : split_n[1]]
+        test = processed_txt[split_n[1] :]
+        datasets = {
+            "train": train,
+            "val": val,
+            "test": test,
+        }
 
     else:
         raise ValueError(f"Corpus {corpus_name} not supported")
 
     # data preprocessing
-    all_words = corpus.words()
-    n_words = len(all_words)
-    split_n = [int(s * n_words) for s in np.cumsum(data_splits)]
-    train = clean_str(" ".join(all_words[: split_n[0]]))
-    val = clean_str(" ".join(all_words[split_n[0] : split_n[1]]))
-    test = clean_str(" ".join(all_words[split_n[1] :]))
-    datasets = {
-        "train": train.split(),
-        "val": val.split(),
-        "test": test.split(),
-    }
+    # print(train[:200])
+    # raise NotImplemented
 
     root_path = os.path.join("data", corpus_name, "objects")
     if os.path.exists(root_path):
@@ -250,41 +302,6 @@ def save_params(dictionary, path):
         yaml.dump(dictionary, file)
 
 
-def clean_str(string, tolower=True):
-    """
-    Tokenization/string cleaning.
-    Original taken from https://github.com/yoonkim/CNN_sentence/blob/master/
-    process_data.py
-    """
-    string = re.sub(r"[^A-Za-z0-9(),!?\'\`]", " ", string)
-    string = re.sub(r"\'s", " 's", string)
-    string = re.sub(r"\'ve", " 've", string)
-    string = re.sub(r"n\'t", " n't", string)
-    string = re.sub(r"\'re", " 're", string)
-    string = re.sub(r"\'d", " 'd", string)
-    string = re.sub(r"\'ll", " 'll", string)
-    string = re.sub(r",", " , ", string)
-    string = re.sub(r"!", " ! ", string)
-    string = re.sub(r"\(", " \( ", string)
-    string = re.sub(r"\)", " \) ", string)
-    string = re.sub(r"\?", " \? ", string)
-    string = re.sub(r"\s{2,}", " ", string)
-    if tolower:
-        string = string.lower()
-    return string.strip()
-
-
-def zipfolder(path_folder, name_zip):
-    assert os.listdir(path_folder)
-    last_folder = path_folder.split("/")[-1]
-    files = os.listdir(path_folder)
-    with ZipFile(name_zip, "w") as zipf:
-        for file in files:
-            path_file = os.path.join(path_folder, file)
-            path_arc = os.path.join(last_folder, file)
-            zipf.write(path_file, path_arc)
-
-
 if __name__ == "__main__":
-    initialize_dataset("penn-treebank", 15)
-    pass
+    s = ["Hello", "I", "haven't!", "<unk>", ".", "</s>", "yes (no)?", "I'll"]
+    print(preprocess_sentence(s))

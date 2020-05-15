@@ -20,7 +20,6 @@ class CharCNN(nn.Module):
                 for w, f in zip(filters_width, num_filters)
             ]
         )
-        # self.conv = nn.Conv1d(char_embedding_size, 2, 3)
         self.tanh = nn.Tanh()
 
     def forward(self, x, debug=False):
