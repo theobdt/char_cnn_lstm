@@ -130,7 +130,7 @@ if args.txt_file:
                         word = best_words[0]
                     else:
                         raise ValueError("Output tensor not initialized")
-                encoded_word = char_vocab.to_idx(word, word_length)
+                encoded_word = char_vocab.to_idx(word, word_length).to(device)
                 encoded_word = encoded_word.view(1, 1, -1)
                 hidden = tuple([h.detach().to(device) for h in hidden])
                 output, hidden = model(encoded_word, hidden)
