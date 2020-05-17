@@ -139,11 +139,8 @@ class CharCNNLSTM(nn.Module):
             print("after final reshape")
             print(x.shape)
 
-        # last hidden state
         outputs, hidden = self.lstm(x, hidden)
-        # hidden : (h_t, c_t)
         # output shape : (batch_size, seq_len, hidden_size)
-        # shape : (batch_size, hidden_size)
         if debug:
             print("after lstm")
             print(x.shape)
@@ -153,7 +150,6 @@ class CharCNNLSTM(nn.Module):
         if debug:
             print("after linear")
             print(outputs.shape)
-        # outputs = F.softmax(outputs, dim=2)
         return outputs, hidden
 
     def init_hidden(self, batch_size):

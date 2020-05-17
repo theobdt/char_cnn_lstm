@@ -1,18 +1,16 @@
-from utils.preprocessing import (
-    initialize_dataset,
-    load_params,
-)
-from utils.dataloader import DataLoader
-from models.model import CharCNNLSTM
 import argparse
+from datetime import datetime
+import numpy as np
 import os
+import shutil
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
-from datetime import datetime
-import numpy as np
-import shutil
+
+from utils.objects import load_params, get_data_params
+from utils.dataloader import DataLoader
+from models.model import CharCNNLSTM
 
 
 parser = argparse.ArgumentParser()
@@ -25,8 +23,8 @@ parser.add_argument(
     help="Path to the config file for the experiment",
 )
 parser.add_argument(
-    "-reset",
-    "--reset_objects",
+    "-u",
+    "--update_objects",
     action="store_true",
     help="If entered, words and characters objects are recomputed",
 )
@@ -62,13 +60,10 @@ if args.gdrive:
         args.gdrive, "My Drive/char_cnn_lstm", args.path_ckpts
     )
 
-path_objects = os.path.join("data", config["data"]["corpus_name"], "objects")
-if not os.path.exists(path_objects) or args.reset_objects:
-    initialize_dataset(**config["data"])
 
-
-path_data_params = os.path.join(path_objects, "data.yaml")
-data_params = load_params(path_data_params)
+data_params, path_objects = get_data_params(
+    config["data"], args.update_objects
+)
 
 # Initialize checkpoint
 ckpt_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -81,10 +76,11 @@ path_ckpt_config = os.path.join(path_ckpt, "config.yaml")
 
 path_idx2char = os.path.join(path_objects, "idx2char.pkl")
 path_idx2word = os.path.join(path_objects, "idx2word.pkl")
+path_objects_params = os.path.join(path_objects, "data.yaml")
 
 shutil.copy2(path_idx2char, path_ckpt_data)
 shutil.copy2(path_idx2word, path_ckpt_data)
-shutil.copy2(path_data_params, path_ckpt_data)
+shutil.copy2(path_objects_params, path_ckpt_data)
 shutil.copy2(args.config, path_ckpt)
 print(f"Initialized checkpoint {path_ckpt}")
 
@@ -200,5 +196,5 @@ for i in range(n_epochs):
 writer.close()
 
 if args.gdrive:
-    shutil.make_archive(path_ckpt, 'zip', path_ckpt)
-    print(f"Zipfile saved to {path_zip}")
+    shutil.make_archive(path_ckpt, "zip", path_ckpt)
+    print(f"Zipfile saved to {path_ckpt}.zip")

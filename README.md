@@ -19,22 +19,36 @@ $ chmod +x download_model.sh
 $ ./download_model.sh
 ```
 
-Then predict next 10 words with:
+Then predict missing words with:
 ```
-$ python3 test.py --max_words 10
-```
+$ python3 predict.py --txt_file example.txt --n_best 3
+Checkpoint ckpts/2020-05-15_20-51-11 loaded successfully
+Predicting on file example.txt
 
+Input : I saw her and she __
+Prediction : I saw her and she [was/'s/is]
+
+Input : I saw her and we __
+Prediction : I saw her and we ['re/have/do]
+
+Input : I see her and she __
+Prediction : I see her and she ['s/says/is]
+
+Input : I see her and we __
+Prediction : I see her and we ['re/'ve/have]
+```
 
 ## Training
 
 We recommend training this model on GPU.
-We trained it on Google Colaboratory.
+We trained it on Google Colaboratory, an example notebook can be found [here](https://colab.research.google.com/drive/1spqn7rE9du-wbxoTn7gF9tbOXsResilz?usp=sharing).
 
 ```
-$ python3 train.py --n_epochs 30
+$ python3 train.py 
 ```
-
-If you are using Google Colab and want to save weights on google drive :
+## Tensorboard
+You can inspect checkpoints locally with tensorboard:
 ```
-$ python3 train.py --n_epochs 30 --gdrive /content/gdrive
+$ pip3 install tensorboard
+$ tensorboard --logdir ckpts
 ```

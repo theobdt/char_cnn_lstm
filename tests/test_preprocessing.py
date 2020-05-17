@@ -1,6 +1,7 @@
 import pytest
-from utils import preprocessing
 from torchnlp.datasets import penn_treebank_dataset
+
+from utils.vocab import WordsVocabulary, CharsVocabulary
 
 
 @pytest.fixture
@@ -9,7 +10,7 @@ def sample_data():
 
 
 def test_WordsVocabulary(sample_data):
-    words_vocabulary = preprocessing.WordsVocabulary()
+    words_vocabulary = WordsVocabulary()
     for word in sample_data:
         words_vocabulary.add_word(word)
     words_vocabulary.sort()
@@ -22,7 +23,7 @@ def test_WordsVocabulary(sample_data):
 
 def test_CharsVocabulary(sample_data):
 
-    chars_vocabulary = preprocessing.CharsVocabulary()
+    chars_vocabulary = CharsVocabulary()
     for word in sample_data:
         chars_vocabulary.add_word(word)
     chars_vocabulary.process()

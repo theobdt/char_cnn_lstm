@@ -1,7 +1,7 @@
 data:
-  corpus_name: "brown"
+  corpus_name: "penn-treebank"
   max_word_length: null
-  max_words: 16383
+  max_words: null
 
 training:
   batch_size: 16

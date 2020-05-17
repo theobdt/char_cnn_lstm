@@ -1,5 +1,5 @@
 from models.model import CharCNNLSTM
-from utils.preprocessing import load_params
+from utils.objects import load_params
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
