@@ -75,8 +75,8 @@ class WordsVocabulary:
         self.word2idx = {w: i for i, w in enumerate(self.idx2word)}
 
     def set_idx2word(self, idx2word):
-        # assert idx2word[0] == tokens.eos
-        # assert idx2word[1] == tokens.unk_w
+        assert idx2word[0] == tokens.eos
+        assert idx2word[1] == tokens.unk_w
         self.idx2word = idx2word
         self.word2idx = {w: i for i, w in enumerate(self.idx2word)}
 

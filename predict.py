@@ -108,7 +108,7 @@ if args.test:
         print(f"Test set: CE={avg_loss:.3f}, PPL={avg_perplexity:.2f}")
 
 if args.txt_file:
-    print(f"Predicting on file {args.txt_file}")
+    print(f"\nPredicting on file {args.txt_file}")
     with open(args.txt_file, "r") as txt_file:
         raw_lines = [line.split() for line in txt_file.readlines()]
 
@@ -124,7 +124,7 @@ if args.txt_file:
                 if word == "__":
                     if output is not None:
                         best_words = word_vocab.output2word(
-                            output, n_best=args.n_best
+                            output.cpu(), n_best=args.n_best
                         )
                         predictions[j - 1] = f"[{'/'.join(best_words)}]"
                         word = best_words[0]
@@ -132,6 +132,7 @@ if args.txt_file:
                         raise ValueError("Output tensor not initialized")
                 encoded_word = char_vocab.to_idx(word, word_length)
                 encoded_word = encoded_word.view(1, 1, -1)
+                hidden = tuple([h.detach().to(device) for h in hidden])
                 output, hidden = model(encoded_word, hidden)
             print(f"\nInput : {' '.join(raw_lines[i])}")
             print(f"Prediction : {' '.join(predictions)}")

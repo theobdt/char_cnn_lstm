@@ -196,5 +196,5 @@ for i in range(n_epochs):
 writer.close()
 
 if args.gdrive:
-    shutil.make_archive(path_ckpt, "zip", path_ckpt)
+    shutil.make_archive(path_ckpt, "zip", path_ckpts, ckpt_name)
     print(f"Zipfile saved to {path_ckpt}.zip")
